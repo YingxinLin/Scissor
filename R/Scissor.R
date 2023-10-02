@@ -152,10 +152,16 @@ Scissor <- function(bulk_dataset, sc_dataset, phenotype, tag = NULL,
         cat("\n")
     }
     print("|**************************************************|")
+    
+    cor_mean <- colMeans(X) # edit by YL
+    sign_sum <- colSums(X > 0) # edit by YL
+
 
     return(list(para = list(alpha = alpha[i], lambda = fit0$lambda.min, family = family),
                 Coefs = Coefs,
                 Scissor_pos = Cell1,
-                Scissor_neg = Cell2))
+                Scissor_neg = Cell2,
+                cor_mean = cor_mean,
+                sign_sum = sign_sum))
 }
 

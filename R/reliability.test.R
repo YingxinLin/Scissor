@@ -31,7 +31,8 @@
 #'
 #' @import progress Matrix
 #' @export
-reliability.test <- function(X, Y, network, alpha, family = c("gaussian","binomial","cox"), cell_num, n = 100, nfold = 10){
+reliability.test <- function(X, Y, network, alpha, family = c("gaussian","binomial","cox"), cell_num, n = 100, nfold = 10,
+                             BPPARAM = SerialParam()){
 
     library(progress)
     library(Matrix)
@@ -41,7 +42,7 @@ reliability.test <- function(X, Y, network, alpha, family = c("gaussian","binomi
     }
     if (family == 'binomial'){
         library(pROC)
-        result <- test_logit(X, Y, network, alpha, cell_num, n, nfold)
+        result <- test_logit(X, Y, network, alpha, cell_num, n, nfold, BPPARAM = BPPARAM)
     }
     if (family == 'cox'){
         library(survival)

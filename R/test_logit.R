@@ -1,4 +1,6 @@
-test_logit <- function(X, Y, network, alpha, cell_num, n = 100, nfold = 10){
+#' @import BiocParallel
+
+test_logit <- function(X, Y, network, alpha, cell_num, n = 100, nfold = 10, BPPARAM = SerialParam()){
 
     set.seed(2)
     m1 <- sum(Y == 1)
@@ -37,35 +39,36 @@ test_logit <- function(X, Y, network, alpha, cell_num, n = 100, nfold = 10){
     print("|**************************************************|")
     print("Perform cross-validation on X with permutated label")
     AUC_test_back <- list()
-    pb2 <- progress_bar$new(total = n)
-    for (i in 1:n){
-        set.seed(i+100)
-        AUC_test_back[[i]] <- matrix(0, nfold, 1, dimnames = list(paste0("Testing_",  1:nfold), "AUC"))
-        Y2 <- sample(Y)
-        names(Y2) <- rownames(X)
-        for (j in 1:nfold){
-            c_index <- c(which(Y2 == 1)[which(index1 == j)], which(Y2 == 0)[which(index2 == j)])
-            X_train <- X[-c_index,]
-            Y_train <- Y2[-c_index]
-            fit <- NULL
-            while (is.null(fit$fit)){
-                set.seed(123)
-                fit <- APML1(X_train, Y_train, family = "binomial", penalty = "Net", alpha = alpha, Omega = network, nlambda = 100)
-            }
-            index <- which.min(abs(fit$fit$nzero - cell_num))
-            Coefs <- as.numeric(fit$Beta[2:(ncol(X_train)+1), index])
-            Cell1 <- Coefs[which(Coefs > 0)]
-            Cell2 <- Coefs[which(Coefs < 0)]
-
-            X_test <- X[c_index,]
-            Y_test <- Y2[c_index]
-            score_test <- 1/(1+exp(-X_test%*%Coefs-fit$Beta[1,index]))[,1]
-            AUC_test_back[[i]][j] <- roc(Y_test, score_test, direction = "<", quiet = T)$auc
+    # pb2 <- progress_bar$new(total = n)
+    
+    AUC_test_back <- BiocParallel::bplapply(1:n, function(i) {
+      set.seed(i+100)
+      res <- matrix(0, nfold, 1, dimnames = list(paste0("Testing_",  1:nfold), "AUC"))
+      Y2 <- sample(Y)
+      names(Y2) <- rownames(X)
+      for (j in 1:nfold){
+        c_index <- c(which(Y2 == 1)[which(index1 == j)], which(Y2 == 0)[which(index2 == j)])
+        X_train <- X[-c_index,]
+        Y_train <- Y2[-c_index]
+        fit <- NULL
+        while (is.null(fit$fit)){
+          set.seed(123)
+          fit <- APML1(X_train, Y_train, family = "binomial", penalty = "Net", alpha = alpha, Omega = network, nlambda = 100)
         }
-        #pb2$tick()
-        Sys.sleep(1 / 100)
-        if (i == n) cat("Finished!\n")
-    }
+        index <- which.min(abs(fit$fit$nzero - cell_num))
+        Coefs <- as.numeric(fit$Beta[2:(ncol(X_train)+1), index])
+        Cell1 <- Coefs[which(Coefs > 0)]
+        Cell2 <- Coefs[which(Coefs < 0)]
+        
+        X_test <- X[c_index,]
+        Y_test <- Y2[c_index]
+        score_test <- 1/(1+exp(-X_test%*%Coefs-fit$Beta[1,index]))[,1]
+        res[j] <- roc(Y_test, score_test, direction = "<", quiet = T)$auc
+        
+      }
+      return(res)
+    }, BPPARAM = BPPARAM)
+    
     statistic  <- mean(AUC_test_real)
     background <- NULL
     for (i in 1:n){
